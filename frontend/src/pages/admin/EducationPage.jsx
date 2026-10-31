@@ -1,0 +1,411 @@
+import { useEffect, useState } from 'react';
+import { Eye, EyeOff, GraduationCap, Pencil, Plus, Trash2 } from 'lucide-react';
+import { api } from '../../lib/api.js';
+import { useResource } from '../../hooks/useResource.js';
+import { useToast } from '../../context/ToastContext.jsx';
+import { PageHeader } from '../../components/ui/PageHeader.jsx';
+import { Button } from '../../components/ui/Button.jsx';
+import { Badge } from '../../components/ui/Badge.jsx';
+import { Skeleton } from '../../components/ui/Skeleton.jsx';
+import { EmptyState } from '../../components/ui/EmptyState.jsx';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
+import { Modal } from '../../components/ui/Modal.jsx';
+import { Field, Input, Switch, Textarea } from '../../components/ui/Field.jsx';
+import { ErrorState } from '../../components/common/ErrorState.jsx';
+import { formatDateRange } from '../../utils/format.js';
+import { educationPayload } from '../../utils/payloads.js';
+
+const blankEducation = {
+  institution: '',
+  degree: '',
+  major: '',
+  start_date: '',
+  end_date: '',
+  is_current: false,
+  description: '',
+  is_published: false,
+  sort_order: 0,
+};
+
+function EducationForm({ open, item, onClose, onSaved }) {
+  const toast = useToast();
+  const [form, setForm] = useState(blankEducation);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm(
+      item
+        ? {
+            institution: item.institution ?? '',
+            degree: item.degree ?? '',
+            major: item.major ?? '',
+            start_date: item.start_date ?? '',
+            end_date: item.end_date ?? '',
+            is_current: Boolean(item.is_current),
+            description: item.description ?? '',
+            is_published: Boolean(item.is_published),
+            sort_order: item.sort_order ?? 0,
+          }
+        : blankEducation,
+    );
+    setErrors({});
+    setFormError(null);
+  }, [open, item]);
+
+  const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setFormError(null);
+
+    const nextErrors = {};
+    if (!form.institution.trim()) nextErrors.institution = 'Institution is required';
+    if (!form.major.trim()) nextErrors.major = 'Major is required';
+    if (form.start_date && form.end_date && form.end_date < form.start_date) {
+      nextErrors.end_date = 'End date cannot be before start date';
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setSaving(true);
+    try {
+      const payload = educationPayload(form);
+      if (item) {
+        await api.put(`/admin/education/${item.id}`, payload);
+        toast.success('Education updated successfully.');
+      } else {
+        await api.post('/admin/education', payload);
+        toast.success('Education created successfully.');
+      }
+      onSaved();
+    } catch (saveError) {
+      setFormError(saveError.message);
+      setErrors(saveError.errors || {});
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={item ? 'Edit education' : 'Add education'}
+      description="Academic history shown on the public portfolio."
+      size="lg"
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="submit" form="education-form" size="sm" loading={saving}>
+            {item ? 'Save changes' : 'Add education'}
+          </Button>
+        </>
+      }
+    >
+      <form id="education-form" onSubmit={handleSubmit} className="space-y-4">
+        {formError ? (
+          <div
+            className="rounded-xl border border-rose-400/20 bg-rose-500/[0.07] px-3.5 py-3 text-xs text-rose-200"
+            role="alert"
+          >
+            {formError}
+          </div>
+        ) : null}
+
+        <Field label="Institution" htmlFor="institution" required error={errors.institution}>
+          <Input
+            id="institution"
+            value={form.institution}
+            onChange={(event) => update('institution', event.target.value)}
+            placeholder="University or school name"
+            invalid={Boolean(errors.institution)}
+            autoFocus
+          />
+        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Degree" htmlFor="degree" error={errors.degree}>
+            <Input
+              id="degree"
+              value={form.degree}
+              onChange={(event) => update('degree', event.target.value)}
+              placeholder="e.g. Bachelor of Computer Science"
+              invalid={Boolean(errors.degree)}
+            />
+          </Field>
+          <Field label="Major" htmlFor="major" required error={errors.major}>
+            <Input
+              id="major"
+              value={form.major}
+              onChange={(event) => update('major', event.target.value)}
+              placeholder="e.g. Informatics Engineering"
+              invalid={Boolean(errors.major)}
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Start date" htmlFor="education_start" error={errors.start_date}>
+            <Input
+              id="education_start"
+              type="date"
+              value={form.start_date}
+              onChange={(event) => update('start_date', event.target.value)}
+              invalid={Boolean(errors.start_date)}
+            />
+          </Field>
+          <Field label="End date" htmlFor="education_end" error={errors.end_date}>
+            <Input
+              id="education_end"
+              type="date"
+              value={form.end_date}
+              onChange={(event) => update('end_date', event.target.value)}
+              disabled={form.is_current}
+              invalid={Boolean(errors.end_date)}
+            />
+          </Field>
+        </div>
+
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+          <Switch
+            id="education_current"
+            checked={form.is_current}
+            onChange={(value) => {
+              update('is_current', value);
+              if (value) update('end_date', '');
+            }}
+            label="Currently studying here"
+            description="Displayed as “Present” on the public site."
+          />
+        </div>
+
+        <Field label="Description" htmlFor="education_description" error={errors.description}>
+          <Textarea
+            id="education_description"
+            rows={4}
+            value={form.description}
+            onChange={(event) => update('description', event.target.value)}
+            placeholder="GPA, achievements, focus areas, or relevant activities."
+            invalid={Boolean(errors.description)}
+          />
+        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Sort order" htmlFor="education_sort" error={errors.sort_order} hint="Lower numbers appear first.">
+            <Input
+              id="education_sort"
+              type="number"
+              min="0"
+              value={form.sort_order}
+              onChange={(event) => update('sort_order', Number(event.target.value))}
+              invalid={Boolean(errors.sort_order)}
+            />
+          </Field>
+          <div className="flex items-center rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+            <Switch
+              id="education_published"
+              checked={form.is_published}
+              onChange={(value) => update('is_published', value)}
+              label="Published"
+              description="Show on the public site."
+            />
+          </div>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export function EducationPage() {
+  const { data, loading, error, reload } = useResource(() => api.get('/admin/education'), []);
+  const toast = useToast();
+
+  const [editor, setEditor] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+
+  const education = data ?? [];
+
+  useEffect(() => {
+    document.title = 'Education — Admin';
+  }, []);
+
+  const togglePublished = async (item) => {
+    setBusyId(item.id);
+    try {
+      await api.put(
+        `/admin/education/${item.id}`,
+        educationPayload(item, { is_published: !item.is_published }),
+      );
+      toast.success(
+        item.is_published ? 'Education hidden from the public site.' : 'Education published.',
+      );
+      reload();
+    } catch (publishError) {
+      toast.error(publishError.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/education/${deleteTarget.id}`);
+      toast.success('Education deleted.');
+      setDeleteTarget(null);
+      reload();
+    } catch (deleteError) {
+      toast.error(deleteError.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title="Education"
+        description="Manage the academic history shown on your portfolio."
+      >
+        <Button onClick={() => setEditor({ item: null })}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add education
+        </Button>
+      </PageHeader>
+
+      {loading ? (
+        <div className="admin-card space-y-3 p-5">
+          {[0, 1].map((item) => (
+            <Skeleton key={item} className="h-14 w-full" />
+          ))}
+        </div>
+      ) : error ? (
+        <ErrorState title="Education could not be loaded" message={error.message} onRetry={reload} />
+      ) : education.length === 0 ? (
+        <EmptyState
+          icon={GraduationCap}
+          title="No education yet"
+          description="Add your academic background to complete the portfolio."
+          action={
+            <Button size="sm" onClick={() => setEditor({ item: null })}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add education
+            </Button>
+          }
+        />
+      ) : (
+        <div className="admin-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[740px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.06] text-[10px] uppercase tracking-[0.15em] text-zinc-600">
+                  <th className="px-5 py-3 font-medium">Institution</th>
+                  <th className="px-4 py-3 font-medium">Degree</th>
+                  <th className="px-4 py-3 font-medium">Period</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Order</th>
+                  <th className="px-5 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.05]">
+                {education.map((item) => (
+                  <tr key={item.id} className="transition-colors hover:bg-white/[0.02]">
+                    <td className="px-5 py-3">
+                      <p className="font-medium text-zinc-200">{item.institution}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">{item.major}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-zinc-500">{item.degree || '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-[11px] text-zinc-500">
+                      {formatDateRange(item.start_date, item.end_date, item.is_current)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={item.is_published ? 'success' : 'warning'}>
+                        {item.is_published ? 'Published' : 'Draft'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-zinc-500">
+                      {item.sort_order}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => togglePublished(item)}
+                          loading={busyId === item.id}
+                          title={item.is_published ? 'Unpublish' : 'Publish'}
+                          aria-label={item.is_published ? 'Unpublish education' : 'Publish education'}
+                          className="h-8 w-8"
+                        >
+                          {item.is_published ? (
+                            <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditor({ item })}
+                          title="Edit"
+                          aria-label="Edit education"
+                          className="h-8 w-8"
+                        >
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteTarget(item)}
+                          title="Delete"
+                          aria-label="Delete education"
+                          className="h-8 w-8 hover:bg-rose-500/10 hover:text-rose-300"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <EducationForm
+        open={Boolean(editor)}
+        item={editor?.item}
+        onClose={() => setEditor(null)}
+        onSaved={() => {
+          setEditor(null);
+          reload();
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        title="Delete education?"
+        description={
+          deleteTarget
+            ? `The record at "${deleteTarget.institution}" will be permanently removed. This action cannot be undone.`
+            : ''
+        }
+      />
+    </div>
+  );
+}

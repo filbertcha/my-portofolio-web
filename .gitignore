@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Uploaded media (keep the folder)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs and editor files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+README.md
+SETUP.md
+seed.js
