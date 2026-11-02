@@ -37,6 +37,15 @@ export const env = {
   uploadDir: path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
   maxUploadBytes: number(process.env.MAX_UPLOAD_MB, 5) * 1024 * 1024,
 
+  // When set, images go to Supabase Storage instead of the local disk.
+  // Required on serverless hosts such as Vercel (read-only, ephemeral disk).
+  supabaseUrl: (process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  supabaseBucket: process.env.SUPABASE_STORAGE_BUCKET || 'portfolio',
+  useSupabaseStorage: Boolean(
+    process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+  ),
+
   admin: {
     username: process.env.ADMIN_USERNAME || 'admin',
     email: process.env.ADMIN_EMAIL || 'admin@example.com',
@@ -46,4 +55,10 @@ export const env = {
 
 if (isProduction && env.sessionSecret === 'insecure-development-secret') {
   throw new Error('SESSION_SECRET must be set in production.');
+}
+
+if (isProduction && !env.useSupabaseStorage) {
+  console.warn(
+    '[env] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set. Uploads will be written to the local disk, which is read-only on serverless hosts such as Vercel.',
+  );
 }

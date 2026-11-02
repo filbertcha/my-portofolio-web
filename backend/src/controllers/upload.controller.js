@@ -1,8 +1,5 @@
-import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { env } from '../config/env.js';
 import { asyncHandler, HttpError } from '../lib/HttpError.js';
+import { storeImage } from '../lib/storage.js';
 import { detectImage } from '../utils/image.js';
 
 export const uploadImage = asyncHandler(async (req, res) => {
@@ -17,15 +14,17 @@ export const uploadImage = asyncHandler(async (req, res) => {
     });
   }
 
-  const filename = `${Date.now()}-${crypto.randomUUID()}.${detected.extension}`;
-  await fs.mkdir(env.uploadDir, { recursive: true });
-  await fs.writeFile(path.join(env.uploadDir, filename), req.file.buffer);
+  const { url } = await storeImage({
+    buffer: req.file.buffer,
+    extension: detected.extension,
+    mime: detected.mime,
+  });
 
   res.status(201).json({
     success: true,
     message: 'Image uploaded successfully',
     data: {
-      url: `/uploads/${filename}`,
+      url,
       mime_type: detected.mime,
       size: req.file.size,
     },
