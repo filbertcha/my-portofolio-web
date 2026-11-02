@@ -33,14 +33,6 @@ export function Footer() {
           </p>
 
           <Link
-            to="/admin"
-            className="inline-flex items-center gap-1 text-xs text-zinc-600 transition-colors hover:text-zinc-300"
-          >
-            Admin
-            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-          </Link>
-
-          <Link
             to="/#top"
             aria-label="Back to top"
             title="Back to top"
